@@ -1,10 +1,11 @@
-name: Example workflow using Snyk
+name: Automated Security Testing Workflow 
 on: [push, pull_request]
 jobs:
-  security:
+  snyk_scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
+      - name: "Check out Git repository"
+        uses: actions/checkout@master
       - name: "Use Node.js 16"
         uses: actions/setup-node@f1f314fca9dfce2769ece7d933488f076716723e #v1: v2.x available
         with:
@@ -18,7 +19,56 @@ jobs:
           npm install --ignore-scripts --legacy-peer-deps
       - name: Run Snyk to check for vulnerabilities
         uses: snyk/actions/node@master
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           command: code test
+
+  zap_scan:
+    runs-on: ubuntu-latest
+    name: zap scan
+    steps:
+      - name: Check out
+        uses: actions/checkout@v2
+        with:
+          ref: develop
+      - name: Install Dependencies
+        run: npm install -y
+      - name: "Check out Git repository"
+        uses: actions/checkout@5a4ac9002d0be2fb38bd78e4b4dbde5606d7042f
+      - name: "Use Node.js 16"
+        uses: actions/setup-node@f1f314fca9dfce2769ece7d933488f076716723e 
+        with:
+          node-version: 16
+      - name: "Install CLI tools"
+        run: |
+          npm install -g @angular/cli@$ANGULAR_CLI_VERSION
+          npm install -g grunt-cli
+      - name: "Set packaging options for Grunt"
+        run: |
+          echo "PCKG_OS_NAME=linux" >> $GITHUB_ENV
+          echo "PCKG_NODE_VERSION=14" >> $GITHUB_ENV
+          echo "PCKG_CPU_ARCH=x64" >> $GITHUB_ENV
+      - name: "Package application"
+        run: |
+          npm install --production
+          npm install -g grunt-cli
+          npm run package:ci
+      - name: "Unpack application archive"
+        run: |
+          cd dist
+          tar -zxf juice-shop-*.tgz
+      - name: "start app"
+        run: |
+          cd dist/juice-shop_*
+          npm start & 
+          sleep 5 &&
+          curl http://localhost:3000 -I
+      - name: ZAP Scan
+        uses: zaproxy/action-full-scan@v0.4.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          target: 'http://localhost:3000/'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
