@@ -1,0 +1,26 @@
+name: Automated Security Testing Workflow 
+on: [push, pull_request]
+jobs:
+  snyk_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check out Git repository"
+        uses: actions/checkout@master
+      - name: "Use Node.js 16"
+        uses: actions/setup-node@f1f314fca9dfce2769ece7d933488f076716723e #v1: v2.x available
+        with:
+          node-version: 16
+      - name: "Install CLI tools"
+        run: npm install -g @angular/cli@$ANGULAR_CLI_VERSION
+      - name: "Install application minimalistically"
+        run: |
+          npm install --ignore-scripts
+          cd frontend
+          npm install --ignore-scripts --legacy-peer-deps
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: code test
